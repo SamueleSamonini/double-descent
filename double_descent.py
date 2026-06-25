@@ -134,3 +134,32 @@ def run_experiment(d_grid, n_train, n_test, n_features, noise_std,
         "ridge_test": ridge_test.mean(axis=0),
         "ridge_norm": ridge_norm.mean(axis=0),
     }
+
+def fit_gradient_descent(X, y, n_steps, lr=None):
+    """Least squares via batch gradient descent on the squared loss.
+
+    Started from w = 0. The key fact we want to show: in the
+    over-parameterized regime (d > n), gradient descent from zero
+    initialization converges to the SAME minimum-norm solution returned by
+    the pseudoinverse. No explicit penalty is used, yet GD selects the
+    low-norm interpolating solution: this is 'implicit regularization'.
+
+    Loss:     L(w) = (1/n) * ||X w - y||^2
+    Gradient: grad = (2/n) * X^T (X w - y)
+
+    If 'lr' is None we set the step size from the largest eigenvalue of the
+    Hessian (2/n) X^T X, which guarantees the iteration is stable.
+    """
+    n, d = X.shape
+
+    if lr is None:
+        # largest singular value of X -> largest eigenvalue of the Hessian
+        s_max = np.linalg.norm(X, 2)
+        L = (2.0 / n) * s_max ** 2
+        lr = 1.0 / L
+
+    w = np.zeros(d)
+    for _ in range(n_steps):
+        grad = (2.0 / n) * X.T @ (X @ w - y)
+        w = w - lr * grad
+    return w
