@@ -79,3 +79,58 @@ def predict(X, w):
 def mse(y_true, y_pred):
     """Mean squared error."""
     return np.mean((y_true - y_pred) ** 2)
+
+def run_experiment(d_grid, n_train, n_test, n_features, noise_std,
+                   n_trials, lam, seed):
+    """Run the double descent experiment.
+
+    For each model complexity d in 'd_grid' we:
+      - fit least squares and ridge on the first d features,
+      - record train MSE, test MSE and the solution norm ||w||,
+    averaging everything over 'n_trials' independent datasets.
+
+    Returns a dict of arrays (one value per d), each averaged over trials:
+      'ls_train', 'ls_test', 'ls_norm', 'ridge_train', 'ridge_test', 'ridge_norm'.
+    """
+    n_d = len(d_grid)
+
+    # accumulators: rows = trials, cols = complexities d
+    ls_train = np.zeros((n_trials, n_d))
+    ls_test = np.zeros((n_trials, n_d))
+    ls_norm = np.zeros((n_trials, n_d))
+    ridge_train = np.zeros((n_trials, n_d))
+    ridge_test = np.zeros((n_trials, n_d))
+    ridge_norm = np.zeros((n_trials, n_d))
+
+    rng = np.random.default_rng(seed)
+
+    for t in range(n_trials):
+        # a fresh dataset for each trial (new beta, new X, new noise)
+        X_train, y_train, X_test, y_test, _ = generate_data(
+            n_train, n_test, n_features, noise_std, rng
+        )
+
+        for j, d in enumerate(d_grid):
+            Xtr, Xte = X_train[:, :d], X_test[:, :d]
+
+            # least squares (minimum-norm via SVD)
+            w = fit_least_squares(Xtr, y_train)
+            ls_train[t, j] = mse(y_train, predict(Xtr, w))
+            ls_test[t, j] = mse(y_test, predict(Xte, w))
+            ls_norm[t, j] = np.linalg.norm(w)
+
+            # ridge regression
+            w = fit_ridge(Xtr, y_train, lam)
+            ridge_train[t, j] = mse(y_train, predict(Xtr, w))
+            ridge_test[t, j] = mse(y_test, predict(Xte, w))
+            ridge_norm[t, j] = np.linalg.norm(w)
+
+    # average over trials
+    return {
+        "ls_train": ls_train.mean(axis=0),
+        "ls_test": ls_test.mean(axis=0),
+        "ls_norm": ls_norm.mean(axis=0),
+        "ridge_train": ridge_train.mean(axis=0),
+        "ridge_test": ridge_test.mean(axis=0),
+        "ridge_norm": ridge_norm.mean(axis=0),
+    }
